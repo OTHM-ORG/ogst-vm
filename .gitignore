@@ -30,3 +30,5 @@
 
 # Debug files
 *.dSYM/
+/client/ogst_client
+/server/ogst_server
