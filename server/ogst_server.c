@@ -7,6 +7,13 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <othm_thread.h>
+
+OTHM_CHAIN_DEFUN(testing, testing)
+{
+	printf("hello, world!\n");
+}
+
 struct ogst_socket {
 	struct sockaddr_un socket;
 	unsigned int sd;
@@ -78,27 +85,30 @@ void ogst_socket_run(struct ogst_socket *sock,
 
 int main(void)
 {
-    struct ogst_socket *s1 = ogst_socket_new("../echo_socket");
+    /* struct ogst_socket *s1 = ogst_socket_new("../echo_socket"); */
+    struct othm_list *chain =
+	    OTHM_CHAIN_DIRECT(NULL, testing);
+    struct othm_thread *thread = othm_thread_new(1, chain, NULL);
+    othm_thread_start(thread);
+    pthread_exit(NULL);
+    /* if (listen(s1->sd, 5) == -1) { */
+    /*     perror("listen"); */
+    /*     exit(1); */
+    /* } */
 
 
-    if (listen(s1->sd, 5) == -1) {
-        perror("listen");
-        exit(1);
-    }
+    /* printf("Waiting for a connection...\n"); */
 
+    /* struct ogst_socket *s2 = ogst_socket_accept(s1); */
 
-    printf("Waiting for a connection...\n");
+    /* printf("Connected.\n"); */
 
-    struct ogst_socket *s2 = ogst_socket_accept(s1);
+    /* ogst_socket_run(s2, test); */
 
-    printf("Connected.\n");
+    /* close(s2->sd); */
 
-    ogst_socket_run(s2, test);
-
-    close(s2->sd);
-
-    free(s1);
-    free(s2);
+    /* free(s1); */
+    /* free(s2); */
 
     return 0;
 }
