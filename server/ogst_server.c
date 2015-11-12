@@ -8,15 +8,18 @@
 #include <unistd.h>
 
 #include <othm_thread.h>
+#include <othm_tag.h>
 
-OTHM_CHAIN_DEFUN(testing, testing)
-{
-	printf("hello, world!\n");
-}
+char *ogst_list_form = "list";
 
 struct ogst_socket {
 	struct sockaddr_un socket;
 	unsigned int sd;
+};
+
+struct ogst_tag {
+	int mutability;
+	void *data_form;
 };
 
 struct ogst_socket *ogst_socket_new(char *path)
@@ -46,23 +49,31 @@ struct ogst_socket *ogst_socket_accept(struct ogst_socket *sock)
 	struct ogst_socket *remote_sock;
 
 	remote_sock = malloc(sizeof(struct ogst_socket));
-	if ((remote_sock->sd =
-	     accept(sock->sd, (struct sockaddr *) &remote_sock->socket,
-		    &len)) == -1) {
+	if ((remote_sock->sd = accept
+	     (sock->sd,
+	      (struct sockaddr *) &remote_sock->socket,
+	      &len)) == -1) {
 		perror("accept");
 		exit(1);
         }
 	return remote_sock;
 }
 
-void test(struct ogst_socket *sock)
+
+OTHM_CHAIN_DEFUN(testing, testing)
 {
+	struct ogst_socket *sock = control->result;
 	int done, n;
 	char str[100];
+
+	if (!OTHM_GET_LEFT_TAG
+	    (struct ogst_tag *, position)->mutability)
+		printf("I am not mutable!\n");
 
 	done = 0;
         do {
 		n = recv(sock->sd, str, 100, 0);
+		printf("Got input.\n");
 		if (n <= 0) {
 			if (n < 0)
 				perror("recv");
@@ -77,38 +88,48 @@ void test(struct ogst_socket *sock)
         } while (!done);
 }
 
-void ogst_socket_run(struct ogst_socket *sock,
-		     void (*sock_funct)(struct ogst_socket *))
+struct othm_list *ogst_list_new(void)
 {
-	sock_funct(sock);
+	struct ogst_tag *tagged =
+		malloc(sizeof(struct ogst_tag) +
+		       sizeof(struct othm_list));
+	tagged->mutability = 0;
+	tagged->data_form = ogst_list_form;
+	return OTHM_GET_TAGGED_LEFT(struct othm_list *,
+				    tagged);
 }
 
 int main(void)
 {
-    /* struct ogst_socket *s1 = ogst_socket_new("../echo_socket"); */
+    struct ogst_socket *s1 = ogst_socket_new("../echo_socket");
     struct othm_list *chain =
-	    OTHM_CHAIN_DIRECT(NULL, testing);
-    struct othm_thread *thread = othm_thread_new(1, chain, NULL);
-    othm_thread_start(thread);
-    pthread_exit(NULL);
-    /* if (listen(s1->sd, 5) == -1) { */
-    /*     perror("listen"); */
-    /*     exit(1); */
-    /* } */
+	    OTHM_CHAIN_DIRECT(ogst_list_new, testing);
+
+    if (listen(s1->sd, 5) == -1) {
+        perror("listen");
+        exit(1);
+    }
 
 
     /* printf("Waiting for a connection...\n"); */
+    int i = 0;
+    while (1) {
+    struct ogst_socket *s2 = ogst_socket_accept(s1);
 
-    /* struct ogst_socket *s2 = ogst_socket_accept(s1); */
+    struct othm_thread *thread = othm_thread_new(i, chain, NULL,
+    						 s2, NULL);
+    othm_thread_start(thread);
+    ++i;
+    }
 
     /* printf("Connected.\n"); */
 
     /* ogst_socket_run(s2, test); */
-
+    /* while(1) {} */
     /* close(s2->sd); */
 
     /* free(s1); */
     /* free(s2); */
-
+    pthread_exit(NULL);
     return 0;
 }
