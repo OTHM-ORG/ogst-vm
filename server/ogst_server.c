@@ -64,6 +64,7 @@ OTHM_CHAIN_DEFUN(testing, testing)
 {
 	struct ogst_socket *sock = control->result;
 	int done, n;
+	unsigned int size;
 	char str[100];
 
 	if (!OTHM_GET_LEFT_TAG
@@ -72,6 +73,8 @@ OTHM_CHAIN_DEFUN(testing, testing)
 
 	done = 0;
         do {
+		recv(sock->sd, &size, sizeof(unsigned int), 0);
+		printf("I got the number: %u\n", size);
 		n = recv(sock->sd, str, 100, 0);
 		printf("Got input.\n");
 		if (n <= 0) {
