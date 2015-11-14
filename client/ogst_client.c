@@ -12,7 +12,7 @@
 int main(void)
 {
     int s, t, len;
-    unsigned int size = 5;
+    unsigned int size;
     struct sockaddr_un remote;
     char str[100];
 
@@ -34,8 +34,9 @@ int main(void)
     printf("Connected.\n");
 
     while(printf("> "), fgets(str, 100, stdin), !feof(stdin)) {
+	    size = strlen(str);
 	    send(s, &size, sizeof(unsigned int), 0);
-        if (send(s, str, strlen(str), 0) == -1) {
+        if (send(s, str, size, 0) == -1) {
             perror("send");
             exit(1);
         }

@@ -1,71 +1,49 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-
 #include <othm_thread.h>
 #include <othm_tag.h>
 
-char *ogst_list_form = "list";
+#include "ogst_socket.h"
 
-struct ogst_socket {
-	struct sockaddr_un socket;
-	unsigned int sd;
-};
+char *ogst_list_form = "list";
+char *ogst_socket_form = "socket";
+
 
 struct ogst_tag {
 	int mutability;
+	void *type;
 	void *data_form;
 };
 
-struct ogst_socket *ogst_socket_new(char *path)
+struct othm_list *ogst_list_gen(void)
 {
-	int len;
-	struct ogst_socket *sock;
-
-	sock = malloc(sizeof(struct ogst_socket));
-	if ((sock->sd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-		perror("socket");
-		exit(1);
-	}
-	sock->socket.sun_family = AF_UNIX;
-	strcpy(sock->socket.sun_path, path);
-	unlink(path);
-	len = strlen(path) + sizeof(sock->socket.sun_family);
-	if (bind(sock->sd, (struct sockaddr *)&sock->socket, len) == -1) {
-		perror("bind");
-		exit(1);
-	}
-	return sock;
+	struct ogst_tag *tagged =
+		malloc(sizeof(struct ogst_tag) +
+		       sizeof(struct othm_list));
+	tagged->mutability = 0;
+	tagged->data_form = ogst_list_form;
+	return OTHM_GET_TAGGED_LEFT(struct othm_list *,
+				    tagged);
 }
 
-struct ogst_socket *ogst_socket_accept(struct ogst_socket *sock)
+struct ogst_socket *ogst_socket_gen(void)
 {
-	int len;
-	struct ogst_socket *remote_sock;
-
-	remote_sock = malloc(sizeof(struct ogst_socket));
-	if ((remote_sock->sd = accept
-	     (sock->sd,
-	      (struct sockaddr *) &remote_sock->socket,
-	      &len)) == -1) {
-		perror("accept");
-		exit(1);
-        }
-	return remote_sock;
+	struct ogst_tag *tagged =
+		malloc(sizeof(struct ogst_tag) +
+		       sizeof(struct ogst_socket));
+	tagged->mutability = 1;
+	tagged->data_form = ogst_socket_form;
+	return OTHM_GET_TAGGED_LEFT(struct othm_socket *,
+				    tagged);
 }
-
 
 OTHM_CHAIN_DEFUN(testing, testing)
 {
 	struct ogst_socket *sock = control->result;
 	int done, n;
+	unsigned int old_size = 0;
 	unsigned int size;
-	char str[100];
+	char *str;
+	str = malloc(old_size);
 
 	if (!OTHM_GET_LEFT_TAG
 	    (struct ogst_tag *, position)->mutability)
@@ -75,7 +53,12 @@ OTHM_CHAIN_DEFUN(testing, testing)
         do {
 		recv(sock->sd, &size, sizeof(unsigned int), 0);
 		printf("I got the number: %u\n", size);
-		n = recv(sock->sd, str, 100, 0);
+		if (size > old_size) {
+			free(str);
+			str = malloc(size);
+			old_size = size;
+		}
+		n = recv(sock->sd, str, size, 0);
 		printf("Got input.\n");
 		if (n <= 0) {
 			if (n < 0)
@@ -91,39 +74,22 @@ OTHM_CHAIN_DEFUN(testing, testing)
         } while (!done);
 }
 
-struct othm_list *ogst_list_new(void)
-{
-	struct ogst_tag *tagged =
-		malloc(sizeof(struct ogst_tag) +
-		       sizeof(struct othm_list));
-	tagged->mutability = 0;
-	tagged->data_form = ogst_list_form;
-	return OTHM_GET_TAGGED_LEFT(struct othm_list *,
-				    tagged);
-}
-
 int main(void)
 {
-    struct ogst_socket *s1 = ogst_socket_new("../echo_socket");
-    struct othm_list *chain =
-	    OTHM_CHAIN_DIRECT(ogst_list_new, testing);
-
-    if (listen(s1->sd, 5) == -1) {
-        perror("listen");
-        exit(1);
-    }
-
+	struct ogst_socket *s1 = ogst_socket_new(ogst_socket_gen, "../echo_socket");
+	struct othm_list *chain =
+		OTHM_CHAIN_DIRECT(ogst_list_gen, testing);
 
     /* printf("Waiting for a connection...\n"); */
-    int i = 0;
-    while (1) {
-    struct ogst_socket *s2 = ogst_socket_accept(s1);
+	int i = 0;
+	while (1) {
+		struct ogst_socket *s2 = ogst_socket_accept(ogst_socket_gen, s1);
 
-    struct othm_thread *thread = othm_thread_new(i, chain, NULL,
-    						 s2, NULL);
-    othm_thread_start(thread);
-    ++i;
-    }
+		struct othm_thread *thread = othm_thread_new(i, chain, NULL,
+							     s2, NULL);
+		othm_thread_start(thread);
+		++i;
+	}
 
     /* printf("Connected.\n"); */
 
