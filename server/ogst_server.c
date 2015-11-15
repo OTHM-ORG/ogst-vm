@@ -2,17 +2,12 @@
 #include <othm_thread.h>
 #include <othm_tag.h>
 
-#include "ogst_socket.h"
+#include "socket/ogst_socket.h"
+#include "object/ogst_object.h"
 
 char *ogst_list_form = "list";
 char *ogst_socket_form = "socket";
 
-
-struct ogst_tag {
-	int mutability;
-	void *type;
-	void *data_form;
-};
 
 struct othm_list *ogst_list_gen(void)
 {
@@ -38,40 +33,53 @@ struct ogst_socket *ogst_socket_gen(void)
 
 OTHM_CHAIN_DEFUN(testing, testing)
 {
+
 	struct ogst_socket *sock = control->result;
-	int done, n;
+	int n;
 	unsigned int old_size = 0;
 	unsigned int size;
 	char *str;
+
 	str = malloc(old_size);
 
 	if (!OTHM_GET_LEFT_TAG
 	    (struct ogst_tag *, position)->mutability)
 		printf("I am not mutable!\n");
 
-	done = 0;
+	ogst_socket_end_mutate(sock, 0);
         do {
+		pthread_mutex_lock(&sock->done_mutex);
+
 		recv(sock->sd, &size, sizeof(unsigned int), 0);
-		printf("I got the number: %u\n", size);
 		if (size > old_size) {
 			free(str);
 			str = malloc(size);
 			old_size = size;
 		}
+
 		n = recv(sock->sd, str, size, 0);
-		printf("Got input.\n");
+		printf("I got the number: %u\n", size);
+		printf("and the string, %s", str);
+
+		/* if (size == 5 && strncmp(str, "sock->end", 4) == 1) { */
+		/* 	sock->end = 1; */
+		/* 	close(sock->sd); */
+		/* } */
+
 		if (n <= 0) {
 			if (n < 0)
 				perror("recv");
-			done = 1;
+			ogst_socket_end_mutate(sock, 1);
 		}
 
-		if (!done)
+		if (!ogst_socket_end_check(sock))
 			if (send(sock->sd, str, n, 0) < 0) {
 				perror("send");
-				done = 1;
+				ogst_socket_end_mutate(sock, 1);
 			}
-        } while (!done);
+
+		pthread_mutex_unlock(&sock->done_mutex);
+        } while (!ogst_socket_end_check(sock));
 }
 
 int main(void)
@@ -81,15 +89,18 @@ int main(void)
 		OTHM_CHAIN_DIRECT(ogst_list_gen, testing);
 
     /* printf("Waiting for a connection...\n"); */
-	int i = 0;
-	while (1) {
+	/* int i = 0; */
+	/* while (1) { */
 		struct ogst_socket *s2 = ogst_socket_accept(ogst_socket_gen, s1);
 
-		struct othm_thread *thread = othm_thread_new(i, chain, NULL,
+		struct othm_thread *thread = othm_thread_new(9, chain, NULL,
 							     s2, NULL);
 		othm_thread_start(thread);
-		++i;
-	}
+
+		sleep(50);
+		ogst_socket_kill_user(s2);
+	/* 	++i; */
+	/* } */
 
     /* printf("Connected.\n"); */
 
