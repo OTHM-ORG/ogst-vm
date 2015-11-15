@@ -1,11 +1,11 @@
 #include "ogst_socket.h"
 #include <pthread.h>
 
-struct ogst_socket *ogst_socket_new(struct ogst_socket *(*gen)(void),
-				    char *path)
+struct ogst_connecter *ogst_connecter_new(struct ogst_connecter *(*gen)(void),
+					  char *path)
 {
 	int len;
-	struct ogst_socket *sock;
+	struct ogst_connecter *sock;
 
 	sock = gen();
 	if ((sock->sd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
@@ -23,11 +23,11 @@ struct ogst_socket *ogst_socket_new(struct ogst_socket *(*gen)(void),
 	return sock;
 }
 
-struct ogst_socket *ogst_socket_accept(struct ogst_socket *(*gen)(void),
-				       struct ogst_socket *sock)
+struct ogst_connection *ogst_connecter_accept(struct ogst_connection *(*gen)(void),
+					      struct ogst_connecter *sock)
 {
 	unsigned int len;
-	struct ogst_socket *remote_sock;
+	struct ogst_connection *remote_sock;
 
 	if (listen(sock->sd, 5) == -1) {
 		perror("listen");
@@ -43,10 +43,14 @@ struct ogst_socket *ogst_socket_accept(struct ogst_socket *(*gen)(void),
 		exit(1);
         }
 	remote_sock->end_bool = 0;
+
+	/* fcntl(remote_sock->sd, F_SETFL, O_NONBLOCK); */
+
+
 	return remote_sock;
 }
 
-int ogst_socket_end_check(struct ogst_socket *socket)
+int ogst_connection_end_check(struct ogst_connection *socket)
 {
 	int value;
 	pthread_mutex_lock(&socket->end_mutex);
@@ -55,17 +59,19 @@ int ogst_socket_end_check(struct ogst_socket *socket)
 	return value;
 }
 
-void ogst_socket_end_mutate(struct ogst_socket *socket, int value)
+void ogst_connection_end_mutate(struct ogst_connection *socket, int value)
 {
 	pthread_mutex_lock(&socket->end_mutex);
 	socket->end_bool = value;
 	pthread_mutex_unlock(&socket->end_mutex);
 }
 
-void ogst_socket_kill_user(struct ogst_socket *user_socket)
+void ogst_connection_kill(struct ogst_connection *user_socket)
 {
-	ogst_socket_end_mutate(user_socket, 1);
+	int true_val = 1;
 	pthread_mutex_lock(&user_socket->done_mutex);
+	ogst_connection_end_mutate(user_socket, 1);
+	setsockopt(user_socket->sd, SOL_SOCKET,SO_REUSEADDR,
+		   &true_val, sizeof(int));
 	pthread_mutex_unlock(&user_socket->done_mutex);
-	close(user_socket->sd);
 }
