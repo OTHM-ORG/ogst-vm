@@ -1,9 +1,9 @@
 #include <string.h>
 #include <othm_thread.h>
 #include <othm_tag.h>
+#include <othm_object.h>
 
 #include "socket/ogst_socket.h"
-#include "object/ogst_object.h"
 
 #include <fcntl.h>
 
@@ -13,8 +13,8 @@ char *ogst_socket_form = "socket";
 
 struct othm_list *ogst_list_gen(void)
 {
-	struct ogst_tag *tagged =
-		malloc(sizeof(struct ogst_tag) +
+	struct othm_obj_tag *tagged =
+		malloc(sizeof(struct othm_obj_tag) +
 		       sizeof(struct othm_list));
 	tagged->mutability = 0;
 	tagged->data_form = ogst_list_form;
@@ -24,8 +24,8 @@ struct othm_list *ogst_list_gen(void)
 
 /* struct ogst_socket *ogst_socket_gen(void) */
 /* { */
-/* 	struct ogst_tag *tagged = */
-/* 		malloc(sizeof(struct ogst_tag) + */
+/* 	struct othm_obj_tag *tagged = */
+/* 		malloc(sizeof(struct othm_obj_tag) + */
 /* 		       sizeof(struct ogst_socket)); */
 /* 	tagged->mutability = 1; */
 /* 	tagged->data_form = ogst_socket_form; */
@@ -35,8 +35,8 @@ struct othm_list *ogst_list_gen(void)
 
 struct ogst_connecter *ogst_connecter_gen(void)
 {
-	struct ogst_tag *tagged =
-		malloc(sizeof(struct ogst_tag) +
+	struct othm_obj_tag *tagged =
+		malloc(sizeof(struct othm_obj_tag) +
 		       sizeof(struct ogst_connecter));
 	tagged->mutability = 1;
 	tagged->data_form = ogst_socket_form;
@@ -46,8 +46,8 @@ struct ogst_connecter *ogst_connecter_gen(void)
 
 struct ogst_connection *ogst_connection_gen(void)
 {
-	struct ogst_tag *tagged =
-		malloc(sizeof(struct ogst_tag) +
+	struct othm_obj_tag *tagged =
+		malloc(sizeof(struct othm_obj_tag) +
 		       sizeof(struct ogst_connection));
 	tagged->mutability = 1;
 	tagged->data_form = ogst_socket_form;
@@ -67,7 +67,7 @@ OTHM_CHAIN_DEFUN(testing, testing)
 	str = malloc(old_size);
 
 	if (!OTHM_GET_LEFT_TAG
-	    (struct ogst_tag *, position)->mutability)
+	    (struct othm_obj_tag *, position)->mutability)
 		printf("I am not mutable!\n");
 
         while (!ogst_connection_end_check(sock)) {
